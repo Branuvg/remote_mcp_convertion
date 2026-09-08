@@ -2,12 +2,19 @@
 
 A remote **MCP (Model Context Protocol)** server that exposes deterministic
 text encoding/decoding tools — binary, hexadecimal, and International Morse
-Code. Built with [FastMCP](https://gofastmcp.com) and designed to run on
-**Google Cloud Run** over the **Streamable HTTP** transport.
+Code. Designed to run on **Google Cloud Run** over the **Streamable HTTP**
+transport.
 
 > Project context: CC3067 Redes (UVG), Project 1, item 7 — "Create an MCP
 > server that runs remotely." See [`SPEC.md`](./SPEC.md) for the full tool
 > specification.
+
+**Protocol implementation:** this server speaks JSON-RPC 2.0 directly over
+Streamable HTTP (`jsonrpc_mcp_http.py`) — `initialize`,
+`notifications/initialized`, `tools/list`, `tools/call`, session lifecycle
+(`Mcp-Session-Id`), and SSE response framing, all hand-written on top of
+Starlette + uvicorn (general-purpose ASGI tooling). It does **not** depend on
+the official `mcp` Python SDK or FastMCP.
 
 ## 1. Overview
 
@@ -41,9 +48,10 @@ chatbot built for this same project.
 | `encode_to_morse` | `text: str` | `str` | `encode_to_morse("HOLA")` → `".... --- .-.. .-"` | Character with no entry in the Morse table |
 | `decode_from_morse` | `morse: str` | `str` | `decode_from_morse(".... --- .-.. .-")` → `"HOLA"` | Token with no entry in the Morse table |
 
-All errors are raised as `ValueError`, which FastMCP surfaces to the calling
-client as a tool error (no manual try/except-and-swallow on the server side).
-See [`SPEC.md`](./SPEC.md) for full parameter/return details and the complete
+All errors are raised as `ValueError`, which the protocol layer
+(`jsonrpc_mcp_http.py`) catches and turns into a `tools/call` result with
+`isError: true` (no manual try/except-and-swallow inside each tool). See
+[`SPEC.md`](./SPEC.md) for full parameter/return details and the complete
 Morse code table.
 
 ## 3. Local development
@@ -61,8 +69,14 @@ environment variable).
 
 ## 4. Testing
 
-With the server running locally (see above, in a separate terminal), run the
-FastMCP client test script:
+Automated protocol tests (in-process, no real server needed):
+
+```bash
+uv run pytest
+```
+
+With the server running locally (see above, in a separate terminal), you can
+also run the raw-JSON-RPC smoke test script against a real HTTP connection:
 
 ```bash
 uv run test_server.py
@@ -142,9 +156,11 @@ With the authenticated proxy running (see above), add an entry to the host's
 
 ```
 remote_mcp_convertion/
-├── pyproject.toml    # uv project + fastmcp dependency
-├── server.py         # FastMCP server, 6 tools, streamable-http transport
-├── test_server.py    # FastMCP client smoke test (happy-path + edge cases)
+├── pyproject.toml       # uv project (starlette, uvicorn, httpx — no MCP SDK)
+├── jsonrpc_mcp_http.py  # hand-rolled JSON-RPC 2.0 / Streamable HTTP protocol layer
+├── server.py            # 6 tools, registered on jsonrpc_mcp_http.MCPServer
+├── tests/               # pytest: protocol layer, in-process (Starlette TestClient)
+├── test_server.py       # raw-JSON-RPC smoke test script (happy-path + edge cases)
 ├── Dockerfile         # python:3.13-slim + uv, for Cloud Run --source deploy
 ├── .dockerignore
 ├── README.md          # this file

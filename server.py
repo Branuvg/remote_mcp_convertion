@@ -5,16 +5,15 @@ and International Morse Code. Runs over Streamable HTTP so it can be deployed
 as a remote MCP server (e.g. on Google Cloud Run).
 """
 
-import asyncio
 import logging
 import os
 
-from fastmcp import FastMCP
+from jsonrpc_mcp_http import MCPServer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP("Text Encoding Conversion MCP Server")
+mcp = MCPServer("Text Encoding Conversion MCP Server")
 
 MORSE_TABLE = {
     "A": ".-", "B": "-...", "C": "-.-.", "D": "-..", "E": ".", "F": "..-.",
@@ -233,10 +232,4 @@ def decode_from_morse(morse: str) -> str:
 
 
 if __name__ == "__main__":
-    asyncio.run(
-        mcp.run_async(
-            transport="streamable-http",
-            host="0.0.0.0",
-            port=int(os.getenv("PORT", 8080)),
-        )
-    )
+    mcp.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
